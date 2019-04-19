@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.IO.Compression;
 
 namespace mergeHoseData
 {
@@ -27,46 +28,74 @@ namespace mergeHoseData
 				}
 				#endregion
 
-				#region Json読込
+				string resultDir = $"{System.Configuration.ConfigurationManager.AppSettings["Directory_result"]}{DateTime.Now.ToString("yyyyMMdd")}";
 
-				//ディレクトリ1のファイルを取得
-				string mydi1 = System.Configuration.ConfigurationManager.AppSettings["Directory1"];
-				DirectoryInfo di1 = new DirectoryInfo(mydi1);
-				List<FileInfo> files1 = di1.EnumerateFiles("*", SearchOption.AllDirectories).ToList();
-
-				//ディレクトリ2のファイルを取得
-				string mydi2 = System.Configuration.ConfigurationManager.AppSettings["Directory2"];
-				DirectoryInfo di2 = new DirectoryInfo(mydi2);
-				List<FileInfo> files2 = di2.EnumerateFiles("*", SearchOption.AllDirectories).ToList();
-				
-				files1.ForEach(file1 =>
+				#region Merge
+				if (System.Configuration.ConfigurationManager.AppSettings["isToMerge"] == "true")
 				{
-					FileInfo file2_same_name = files2.FirstOrDefault(f2 => f2.Name == file1.Name);
-					if (file2_same_name != null)
+					//ディレクトリ1のファイルを取得
+					string mydi1 = System.Configuration.ConfigurationManager.AppSettings["Directory1"];
+					DirectoryInfo di1 = new DirectoryInfo(mydi1);
+					List<FileInfo> files1 = di1.EnumerateFiles("*", SearchOption.AllDirectories).ToList();
+
+					//ディレクトリ2のファイルを取得
+					string mydi2 = System.Configuration.ConfigurationManager.AppSettings["Directory2"];
+					DirectoryInfo di2 = new DirectoryInfo(mydi2);
+					List<FileInfo> files2 = di2.EnumerateFiles("*", SearchOption.AllDirectories).ToList();
+
+					//重複行を消して、同じ名前のファイルをマージ
+					//マージしたデータをresultDirに出力
+					files1.ForEach(file1 =>
 					{
-						var lst_str1 = GetLineList(file1);
-						var lst_str2 = GetLineList(file2_same_name);
-
-						//var lst_uniq1 = CommonMethod.GetDistinct(lst_str1);
-						//var lst_uniq2 = CommonMethod.GetDistinct(lst_str2);
-
-						HashSet<string> hashset1 = new HashSet<string>(lst_str1);
-						HashSet<string> hashset2 = new HashSet<string>(lst_str2);
-
-						HashSet<string> mergeHashset = CommonMethod.MergeHashSet(hashset1, hashset2);
-
-						var resultDir = $"{System.Configuration.ConfigurationManager.AppSettings["Directory_result"]}{DateTime.Now.ToString("yyyyMMdd")}";
-						CommonMethod.DirectoryUtils.SafeCreateDirectory(resultDir);
-						using (StreamWriter sw = new StreamWriter($"{resultDir}\\{file2_same_name.Name}", false, Encoding.UTF8))
+						FileInfo file2_same_name = files2.FirstOrDefault(f2 => f2.Name == file1.Name);
+						if (file2_same_name != null)
 						{
-							foreach(var mhs in mergeHashset)
+							var lst_str1 = GetLineList(file1);
+							var lst_str2 = GetLineList(file2_same_name);
+
+							//var lst_uniq1 = CommonMethod.GetDistinct(lst_str1);
+							//var lst_uniq2 = CommonMethod.GetDistinct(lst_str2);
+
+							HashSet<string> hashset1 = new HashSet<string>(lst_str1);
+							HashSet<string> hashset2 = new HashSet<string>(lst_str2);
+
+							HashSet<string> mergeHashset = CommonMethod.MergeHashSet(hashset1, hashset2);
+
+							CommonMethod.DirectoryUtils.SafeCreateDirectory(resultDir);
+							using (StreamWriter sw = new StreamWriter($"{resultDir}\\{file2_same_name.Name}", false, Encoding.UTF8))
 							{
-								sw.WriteLine(mhs);
+								foreach (var mhs in mergeHashset)
+								{
+									sw.WriteLine(mhs);
+								}
 							}
 						}
-					}
-				});
+					});
+				}
+				#endregion
 
+				#region Zip
+				if (System.Configuration.ConfigurationManager.AppSettings["isToZip"] == "true")
+				{
+					//resultDirのファイルを取得
+					DirectoryInfo diRes = new DirectoryInfo(resultDir);
+					List<FileInfo> filesRes = diRes.EnumerateFiles("*", SearchOption.AllDirectories).ToList();
+					filesRes.ForEach(rf =>
+					{
+						//System.IO.Compression.ZipFile.CreateFromDirectory(rf.FullName, $"{rf.FullName.Replace("json","zip")}");
+						using (var z = ZipFile.Open(rf.FullName.Replace("json", "zip"),
+										ZipArchiveMode.Update))
+						{
+							z.CreateEntryFromFile(
+							  rf.FullName, rf.Name, CompressionLevel.Optimal);
+							//z.CreateEntryFromFile(
+							//  @"C:\Test\b.txt", "b.txt", CompressionLevel.Optimal);
+						}
+					});
+				}
+				#endregion
+
+				#region
 				//。。。
 				////非同期
 				//var task = GetJsonListAsync(files);
@@ -75,8 +104,8 @@ namespace mergeHoseData
 
 				//同期
 				//var results = GetJsonList(files1);
+				#endregion
 
-				#endregion Json読込
 			}
 			catch (Exception ex)
 			{
