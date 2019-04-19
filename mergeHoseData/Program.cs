@@ -82,6 +82,8 @@ namespace mergeHoseData
 					List<FileInfo> filesRes = diRes.EnumerateFiles("*", SearchOption.AllDirectories).ToList();
 					filesRes.ForEach(rf =>
 					{
+						Stopwatch sw = new Stopwatch();sw.Start();
+
 						//System.IO.Compression.ZipFile.CreateFromDirectory(rf.FullName, $"{rf.FullName.Replace("json","zip")}");
 						using (var z = ZipFile.Open(rf.FullName.Replace("json", "zip"),
 										ZipArchiveMode.Update))
@@ -91,7 +93,55 @@ namespace mergeHoseData
 							//z.CreateEntryFromFile(
 							//  @"C:\Test\b.txt", "b.txt", CompressionLevel.Optimal);
 						}
+
+						CommonMethod.WriteSWResult("zip one file", ref sw, true);
 					});
+				}
+				#endregion
+
+				#region Move
+				if (System.Configuration.ConfigurationManager.AppSettings["isToMove"] == "true")
+				{
+					//move先ディレクトリ
+					var moveToDir = $"{resultDir}\\jsonFile";
+					CommonMethod.DirectoryUtils.SafeCreateDirectory(moveToDir);
+
+					//resultDirのファイルを取得
+					DirectoryInfo diRes = new DirectoryInfo(resultDir);
+					List<FileInfo> filesMov = diRes.EnumerateFiles("*.json", SearchOption.AllDirectories).ToList();
+					filesMov.ForEach(mf =>
+					{
+						mf.MoveTo($"{moveToDir}\\{mf.Name}");
+					});
+				}
+				#endregion
+
+				#region Delete
+				if (System.Configuration.ConfigurationManager.AppSettings["isToDelete"] == "true")
+				{
+					string delDir;
+					if(System.Configuration.ConfigurationManager.AppSettings["isToMove"] == "true")
+					{
+						//move先ディレクトリ
+						var moveToDir = $"{resultDir}\\jsonFile";
+						//Directory.Delete(moveToDir);
+						delDir = moveToDir;
+					}
+					else
+					{
+						//resultDirのファイルを取得
+						delDir = resultDir;
+					}
+					DirectoryInfo diRes = new DirectoryInfo(delDir);
+					List<FileInfo> filesDel = diRes.EnumerateFiles("*.json", SearchOption.AllDirectories).ToList();
+					filesDel.ForEach(df =>
+					{
+						df.Delete();
+					});
+					if (Directory.Exists(delDir))
+					{
+						Directory.Delete(delDir);
+					}
 				}
 				#endregion
 
